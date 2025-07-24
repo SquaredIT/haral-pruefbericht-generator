@@ -144,6 +144,38 @@ def download_report_pdf(report_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@report_bp.route('/reports/<int:report_id>/status', methods=['PUT'])
+def update_report_status(report_id):
+    """Update report status"""
+    try:
+        report = Report.query.get_or_404(report_id)
+        data = request.get_json()
+        
+        if not data or 'status' not in data:
+            return jsonify({'error': 'Status is required'}), 400
+        
+        valid_statuses = ['draft', 'in_progress', 'completed', 'archived']
+        if data['status'] not in valid_statuses:
+            return jsonify({'error': f'Invalid status. Must be one of: {valid_statuses}'}), 400
+        
+        report.status = data['status']
+        
+        # If status is completed, try to generate PDF
+        if data['status'] == 'completed':
+            try:
+                customer = Customer.query.get_or_404(report.customer_id)
+                pdf_path = generate_enhanced_report_pdf(report, customer)
+                if pdf_path:
+                    report.pdf_path = pdf_path
+            except Exception as e:
+                print(f"PDF generation failed: {e}")
+        
+        db.session.commit()
+        return jsonify(report.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @report_bp.route('/reports/<int:report_id>/generate-pdf', methods=['POST'])
 def generate_pdf(report_id):
     """Generate PDF for a report"""
