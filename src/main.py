@@ -40,49 +40,60 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f"Database tables might already exist: {e}")
     
     # Create default admin user if no users exist
-    if User.query.count() == 0:
-        admin_user = User(
-            username='admin',
-            email='admin@haral.eu',
-            first_name='Admin',
-            last_name='User',
-            phone='0173 / 135 90 00',
-            role='Admin'
-        )
-        admin_user.set_password('admin123')
-        db.session.add(admin_user)
-        
-        # Create default auditor
-        auditor_user = User(
-            username='ralf.hartmann',
-            email='rh@haral.eu',
-            first_name='Ralf',
-            last_name='Hartmann',
-            phone='0173 / 135 90 00',
-            role='Auditor'
-        )
-        auditor_user.set_password('auditor123')
-        db.session.add(auditor_user)
-        
-        db.session.commit()
-        print("Default users created:")
-        print("Admin: admin / admin123")
-        print("Auditor: ralf.hartmann / auditor123")
+    try:
+        if User.query.count() == 0:
+            admin_user = User(
+                username='admin',
+                email='admin@haral.eu',
+                first_name='Admin',
+                last_name='User',
+                phone='0173 / 135 90 00',
+                role='Admin'
+            )
+            admin_user.set_password('admin123')
+            db.session.add(admin_user)
+            
+            # Create default auditor
+            auditor_user = User(
+                username='ralf.hartmann',
+                email='rh@haral.eu',
+                first_name='Ralf',
+                last_name='Hartmann',
+                phone='0173 / 135 90 00',
+                role='Auditor'
+            )
+            auditor_user.set_password('auditor123')
+            db.session.add(auditor_user)
+            
+            db.session.commit()
+            print("Default users created:")
+            print("Admin: admin / admin123")
+            print("Auditor: ralf.hartmann / auditor123")
+    except Exception as e:
+        print(f"Error creating default users: {e}")
+        db.session.rollback()
     
     # Create sample customer if none exists
-    if Customer.query.count() == 0:
-        sample_customer = Customer(
-            company_name='IGM GmbH & Co. KG Fenster und Fassaden',
-            contact_person='Marius Veith',
-            street='Hinter Inghell',
-            postal_code='67744',
-            city='Medard'
-        )
-        db.session.add(sample_customer)
-        db.session.commit()
+    try:
+        if Customer.query.count() == 0:
+            sample_customer = Customer(
+                company_name='IGM GmbH & Co. KG Fenster und Fassaden',
+                contact_person='Marius Veith',
+                street='Hinter Inghell',
+                postal_code='67744',
+                city='Medard'
+            )
+            db.session.add(sample_customer)
+            db.session.commit()
+    except Exception as e:
+        print(f"Error creating sample customer: {e}")
+        db.session.rollback()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
