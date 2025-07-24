@@ -1,6 +1,6 @@
 from datetime import datetime
 import json
-from src.models.user import db
+from src import db
 
 class Report(db.Model):
     __tablename__ = 'reports'

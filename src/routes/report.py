@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, send_file
+from src import db
 from src.models.report import Report
 from src.models.customer import Customer
-from src.models.user import db
+from src.models.user import User
 from src.utils.enhanced_pdf_generator import generate_enhanced_report_pdf
 import os
 from datetime import datetime

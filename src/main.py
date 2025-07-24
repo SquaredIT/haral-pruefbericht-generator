@@ -5,114 +5,106 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
-from src.models.user import db, User
+from src import create_app, db
+from src.models.user import User
 from src.models.customer import Customer
 from src.models.report import Report
 from src.routes.user import user_bp
 from src.routes.customer import customer_bp
 from src.routes.report import report_bp
 
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
-
-# Configuration for Heroku
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'haral-pruefbericht-secret-key-2025')
-
-# Enable CORS for all routes with credentials support
-CORS(app, supports_credentials=True)
+# Create app using factory pattern
+app = create_app()
 
 # Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(customer_bp, url_prefix='/api')
 app.register_blueprint(report_bp, url_prefix='/api')
 
-# Database configuration - Heroku PostgreSQL or local SQLite
-database_url = os.environ.get('DATABASE_URL')
-if database_url:
-    # Heroku PostgreSQL
-    if database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-else:
-    # Local SQLite
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
+@app.route('/')
+def serve_index():
+    """Serve the main application"""
+    return send_from_directory(app.static_folder, 'index.html')
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db.init_app(app)
+@app.route('/<path:path>')
+def serve_static_or_spa(path):
+    """Serve static files or SPA routes"""
+    try:
+        # Try to serve static file first
+        return send_from_directory(app.static_folder, path)
+    except:
+        # If file doesn't exist, serve index.html for SPA routing
+        return send_from_directory(app.static_folder, 'index.html')
 
-with app.app_context():
+def create_default_users():
+    """Create default users if they don't exist"""
     try:
-        db.create_all()
-    except Exception as e:
-        print(f"Database tables might already exist: {e}")
-    
-    # Create default admin user if no users exist
-    try:
-        if User.query.count() == 0:
-            admin_user = User(
+        # Check if admin user exists
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(
                 username='admin',
-                email='admin@haral.eu',
                 first_name='Admin',
                 last_name='User',
-                phone='0173 / 135 90 00',
-                role='Admin'
+                email='admin@haral.com',
+                phone='',
+                role='admin'
             )
-            admin_user.set_password('admin123')
-            db.session.add(admin_user)
-            
-            # Create default auditor
-            auditor_user = User(
+            admin.set_password('admin123')
+            db.session.add(admin)
+        
+        # Check if auditor user exists
+        auditor = User.query.filter_by(username='ralf.hartmann').first()
+        if not auditor:
+            auditor = User(
                 username='ralf.hartmann',
-                email='rh@haral.eu',
                 first_name='Ralf',
                 last_name='Hartmann',
-                phone='0173 / 135 90 00',
-                role='Auditor'
+                email='ralf.hartmann@haral.com',
+                phone='+49 123 456789',
+                role='auditor'
             )
-            auditor_user.set_password('auditor123')
-            db.session.add(auditor_user)
-            
-            db.session.commit()
-            print("Default users created:")
-            print("Admin: admin / admin123")
-            print("Auditor: ralf.hartmann / auditor123")
+            auditor.set_password('auditor123')
+            db.session.add(auditor)
+        
+        db.session.commit()
+        print("Default users created:")
+        print("Admin: admin / admin123")
+        print("Auditor: ralf.hartmann / auditor123")
+        
     except Exception as e:
         print(f"Error creating default users: {e}")
         db.session.rollback()
-    
-    # Create sample customer if none exists
+
+def create_sample_customer():
+    """Create sample customer if none exist"""
     try:
         if Customer.query.count() == 0:
             sample_customer = Customer(
                 company_name='IGM GmbH & Co. KG Fenster und Fassaden',
                 contact_person='Marius Veith',
-                street='Hinter Inghell',
-                postal_code='67744',
-                city='Medard'
+                email='info@igm-fenster.de',
+                phone='+49 6221 123456',
+                address='Hinter Inghell\n67744 Medard',
+                notes='Spezialist für Fenster und Fassadensysteme'
             )
             db.session.add(sample_customer)
             db.session.commit()
+            print("Sample customer created: IGM GmbH & Co. KG")
     except Exception as e:
         print(f"Error creating sample customer: {e}")
         db.session.rollback()
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    static_folder_path = app.static_folder
-    if static_folder_path is None:
-            return "Static folder not configured", 404
-
-    if path != "" and os.path.exists(os.path.join(static_folder_path, path)):
-        return send_from_directory(static_folder_path, path)
-    else:
-        index_path = os.path.join(static_folder_path, 'index.html')
-        if os.path.exists(index_path):
-            return send_from_directory(static_folder_path, 'index.html')
-        else:
-            return "index.html not found", 404
-
-
 if __name__ == '__main__':
+    with app.app_context():
+        # Create database tables
+        db.create_all()
+        
+        # Create default users and sample data
+        create_default_users()
+        create_sample_customer()
+    
+    # Run the application
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
